@@ -1,0 +1,404 @@
+#
+# .github/workflows/build-on-linux.yml
+#
+# Copyright 2021 Jens A. Koch.
+# SPDX-License-Identifier: MIT
+# This file is part of https://github.com/ontolaw/gdl/.
+#
+
+name: "Build on Linux"
+
+on:
+  - push
+  - pull_request
+  - workflow_dispatch
+
+# improve CI concurrency by automatically cancelling outdated jobs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+
+# ---------------------------------------------------------------------------------------
+
+  build-on-linux:
+
+# ---------------------------------------------------------------------------------------
+
+    name: "${{ matrix.config.job_name }}"
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md
+    runs-on: ${{ matrix.config.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {
+            job_name: "Linux | Clang 22 | Release",
+            os: ubuntu-26.04,
+            preset: clang22-x64-linux-rel,
+            triplet: x64-linux
+          }
+        - {
+            job_name: "Linux | GCC 14 | Release",
+            os: ubuntu-26.04,
+            preset: gcc14-x64-linux-rel,
+            triplet: x64-linux
+          }
+
+    env:
+      # VCPKG Settings
+      VCPKG_DISABLE_METRICS: 1
+      VCPKG_FORCE_SYSTEM_BINARIES: 1
+      VCPKG_FEATURE_FLAGS: manifests,versions,binarycaching,registries
+      VCPKG_ROOT: /usr/local/share/vcpkg
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+      # Paths
+      BUILD_DIR: ${{ github.workspace }}/out/build/${{ matrix.config.preset }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 🤘 Checkout Code
+        uses: actions/checkout@v7 # https://github.com/actions/checkout
+
+      - name: 🔽 Install Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            cmake \
+            jq \
+            pkg-config
+
+      # The gcc14 presets invoke "g++-14", which is NOT preinstalled on the
+      # ubuntu-26.04 image (that image ships GCC 15 as default compiler).
+      - name: 🔽 Install GCC 14 (for the GCC preset)
+        if: matrix.config.preset == 'gcc14-x64-linux-rel'
+        run: |
+          sudo apt-get install -y gcc-14 g++-14
+
+      - name: Get latest CMake and Ninja
+        uses: lukka/get-cmake@latest # https://github.com/lukka/get-cmake
+        with:
+          cmakeVersion: latest
+          ninjaVersion: latest
+
+      - name: ℹ Show Tool Versions
+        run: |
+          cmake --version
+          ninja --version
+
+      - name: 🎯 Setup VCPKG Cache
+        id: cache-vcpkg
+        uses: actions/cache@v6 # https://github.com/actions/cache
+        with:
+          # https://github.com/microsoft/vcpkg/blob/master/docs/users/binarycaching.md#configuration
+          path: |
+            ${{ env.VCPKG_INSTALLED_DIR }}
+            ${{ env.VCPKG_ROOT }}/packages
+            ~/.cache/vcpkg/archives
+          key: cache-vcpkg-${{ matrix.config.preset }}-${{ github.ref }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            cache-vcpkg-${{ matrix.config.preset }}-${{ github.ref }}
+            cache-vcpkg-${{ matrix.config.preset }}
+
+      - name: 🔽 1.1 Update VCPKG (latest TAG)
+        run: |
+          cd ${{ env.VCPKG_ROOT }}
+          git fetch origin --tags --force
+          git checkout master
+          git reset --hard origin/master
+          git clean -fdx
+          LATEST_VCPKG_TAG="$(git tag --sort=-v:refname | head -n 1)"
+          git checkout "$LATEST_VCPKG_TAG"
+
+      - name: 🛠️ 1.2 Setup VCPKG
+        run: |
+          "${VCPKG_ROOT}/bootstrap-vcpkg.sh"
+          "${VCPKG_ROOT}/vcpkg" integrate install
+
+      - name: 📦 1.3 Install VCPKG dependencies
+        run: |
+          "${{ env.VCPKG_ROOT }}/vcpkg" install --triplet "${{ matrix.config.triplet }}" --x-install-root="${{ env.VCPKG_INSTALLED_DIR }}"
+
+      - name: ❔ CHECK important folders, to see if everything is present (after vcpkg install)
+        run: |
+          ls -lahr "${{ env.VCPKG_ROOT }}" || true
+          ls -lahr "${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}/" || true
+          ls -lahr "${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}/include" || true
+
+      # Build Artifact Name: ontolaw-gdl-1.0.0-0cda6a2-clang22-x64-linux-rel
+      - name: ✏ Fetch Versioning Data & Set Artifact Name
+        run: |
+          NAME=$(jq -r .name vcpkg.json)
+          VERSION=$(jq -r .version vcpkg.json)
+          SHORT_HASH="${GITHUB_SHA:0:7}"
+          ARTIFACT_NAME="$NAME-$VERSION-$SHORT_HASH-${{ matrix.config.preset }}"
+          echo "Artifact Name: ${ARTIFACT_NAME}"
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> "$GITHUB_ENV"
+
+      - name: 🛠️ 2.1 Configure gdl
+        run: |
+          cmake \
+            --preset ${{ matrix.config.preset }} \
+            -B ${{ env.BUILD_DIR }} \
+            -DCMAKE_PREFIX_PATH="${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}" \
+            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_MANIFEST_MODE=OFF \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.config.triplet }} \
+            -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_INSTALLED_DIR }}
+
+      - name: 🙏 2.2 Build gdl
+        run: cmake --build ${{ env.BUILD_DIR }}
+
+      # The project does not define any install() rules, so "cmake --install"
+      # would be a no-op. Verify the executable and package it from the build tree.
+      - name: ❔ CHECK that the executable exists (after building)
+        run: |
+          ls -lahr ${{ env.BUILD_DIR }}
+          test -f "${{ env.BUILD_DIR }}/gdl" || { echo "ERROR: ${{ env.BUILD_DIR }}/gdl not found"; exit 1; }
+
+      - name: 🧪 CTest ➔ Run Tests
+        run: |
+          ctest \
+            --test-dir "${{ env.BUILD_DIR }}" \
+            --output-on-failure
+
+      - name: 📦 Package
+        run: |
+          tar -C "${{ env.BUILD_DIR }}" -czf "${{ env.ARTIFACT_NAME }}.tar.gz" gdl
+
+      # To ensure that jobs don't overwrite existing artifacts, use a different "name" per job/run.
+      - name: 📦 🚀 Upload Build Artifact
+        uses: actions/upload-artifact@v7 # https://github.com/actions/upload-artifact
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_NAME }}.tar.gz
+          retention-days: 30
+
+# ---------------------------------------------------------------------------------------
+
+  build-on-container:
+
+# ---------------------------------------------------------------------------------------
+
+    name: ${{ matrix.config.job_name }}
+
+    runs-on: ubuntu-latest
+    container: ghcr.io/jakoch/cpp-devbox:${{ matrix.config.image_version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              job_name: "Linux | GCC 16 | Release",
+              image_version: "trixie-20260726",
+              preset: "gcc16-x64-linux-rel",
+              triplet: x64-linux
+            }
+          - {
+              job_name: "Linux | Clang 22 | Debug",
+              image_version: "trixie-20260726",
+              preset: "clang22-x64-linux-dbg",
+              triplet: x64-linux
+            }
+          - {
+              job_name: "Linux | Clang 22 | Coverage",
+              image_version: "trixie-20260726",
+              preset: "clang22-x64-linux-dbg-cov",
+              triplet: x64-linux
+            }
+
+    env:
+      # VCPKG Settings
+      VCPKG_DISABLE_METRICS: 1
+      VCPKG_FORCE_SYSTEM_BINARIES: 1
+      VCPKG_FEATURE_FLAGS: manifests,versions,binarycaching,registries
+      # vcpkg is pre-installed at /opt/vcpkg in the devcontainer images.
+      VCPKG_ROOT: /opt/vcpkg
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 🤘 Checkout Code
+        uses: actions/checkout@v7 # https://github.com/actions/checkout
+
+      # NOTE: In a container job, ${{ github.workspace }} resolves to the host path
+      # (/home/runner/work/...), which does NOT exist inside the container.
+      # The workspace is mounted at $GITHUB_WORKSPACE (e.g. /__w/...). Derive all
+      # paths from $GITHUB_WORKSPACE so they are valid inside the container.
+      - name: 📂 Setup Workspace Paths
+        run: |
+          echo "BUILD_DIR=${GITHUB_WORKSPACE}/out/build/${{ matrix.config.preset }}" >> "$GITHUB_ENV"
+          echo "VCPKG_INSTALLED_DIR=${GITHUB_WORKSPACE}/vcpkg_installed" >> "$GITHUB_ENV"
+
+      - name: ℹ Show Tool Versions
+        run: |
+          cmake --version
+          ninja --version
+
+      - name: 🔽 Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: 🎯 Setup VCPKG Cache
+        id: cache-vcpkg
+        uses: actions/cache@v6 # https://github.com/actions/cache
+        with:
+          path: |
+            ${{ env.VCPKG_INSTALLED_DIR }}
+            ${{ env.VCPKG_ROOT }}/packages
+            ~/.cache/vcpkg/archives
+          key: cache-vcpkg-container-${{ matrix.config.preset }}-${{ github.ref }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            cache-vcpkg-container-${{ matrix.config.preset }}-${{ github.ref }}
+
+      - name: 🔽 1.1 Update VCPKG (latest TAG)
+        run: |
+          cd ${{ env.VCPKG_ROOT }}
+          git fetch origin --tags --force
+          git checkout master
+          git reset --hard origin/master
+          git clean -fdx
+          LATEST_VCPKG_TAG="$(git tag --sort=-v:refname | head -n 1)"
+          git checkout "$LATEST_VCPKG_TAG"
+
+      - name: 🛠️ 1.2 Setup VCPKG
+        run: |
+          "${VCPKG_ROOT}/bootstrap-vcpkg.sh"
+          "${VCPKG_ROOT}/vcpkg" integrate install
+
+      - name: 📦 1.3 Install VCPKG dependencies
+        run: |
+          "${{ env.VCPKG_ROOT }}/vcpkg" install --triplet "${{ matrix.config.triplet }}" --x-install-root="${{ env.VCPKG_INSTALLED_DIR }}"
+
+      - name: ❔ CHECK important folders, to see if everything is present (after vcpkg install)
+        run: |
+          ls -lahr "${{ env.VCPKG_ROOT }}" || true
+          ls -lahr "${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}/" || true
+          ls -lahr "${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}/include" || true
+
+      # Build Artifact Name: ontolaw-gdl-1.0.0-0cda6a2-clang22-x64-linux-dbg
+      - name: ✏ Fetch Versioning Data & Set Artifact Name
+        run: |
+          NAME=$(jq -r .name vcpkg.json)
+          VERSION=$(jq -r .version vcpkg.json)
+          SHORT_HASH="${GITHUB_SHA:0:7}"
+          ARTIFACT_NAME="$NAME-$VERSION-$SHORT_HASH-${{ matrix.config.preset }}"
+          echo "Artifact Name: ${ARTIFACT_NAME}"
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> "$GITHUB_ENV"
+
+      - name: 🛠️ 2.1 Configure gdl
+        run: |
+          cmake \
+            --preset "${{ matrix.config.preset }}" \
+            -B ${{ env.BUILD_DIR }} \
+            -DCMAKE_PREFIX_PATH="${{ env.VCPKG_INSTALLED_DIR }}/${{ matrix.config.triplet }}" \
+            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_MANIFEST_MODE=OFF \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.config.triplet }} \
+            -DVCPKG_INSTALLED_DIR=${{ env.VCPKG_INSTALLED_DIR }}
+
+      - name: 🙏 2.2 Build gdl
+        run: cmake --build ${{ env.BUILD_DIR }}
+
+      # The project does not define any install() rules, so "cmake --install"
+      # would be a no-op. Verify the executable and package it from the build tree.
+      - name: ❔ CHECK that the executable exists (after building)
+        run: |
+          ls -lahr "${{ env.BUILD_DIR }}"
+          test -f "${{ env.BUILD_DIR }}/gdl" || { echo "ERROR: ${{ env.BUILD_DIR }}/gdl not found"; exit 1; }
+
+      - name: ⚙️ Prepare Coverage Environment
+        if: ${{ matrix.config.preset == 'clang22-x64-linux-dbg-cov' }}
+        run: |
+          mkdir -p "${BUILD_DIR}/coverage"
+          echo "LLVM_PROFILE_FILE=${BUILD_DIR}/coverage/%p.profraw" >> "$GITHUB_ENV"
+
+      - name: 🧪 CTest ➔ Run Tests
+        run: |
+          ctest \
+            --test-dir "${{ env.BUILD_DIR }}" \
+            --output-on-failure
+
+      # ------------------------------------------------------------------------
+      # Code Coverage Steps (only for the "clang22-x64-linux-dbg-cov" preset)
+      # The preset is instrumented with Clang source-based coverage
+      # ("coverage-using-clang" in cmake/presets/base.json), which emits
+      # *.profraw files that llvm-profdata / llvm-cov turn into reports.
+      # ------------------------------------------------------------------------
+
+      - name: 🧾 Merge Coverage Data
+        if: matrix.config.preset == 'clang22-x64-linux-dbg-cov'
+        run: |
+          set -euo pipefail
+          echo "Merging .profraw files from ${{ env.BUILD_DIR }}/coverage"
+          shopt -s nullglob
+          profraw_files=("${{ env.BUILD_DIR }}/coverage"/*.profraw)
+          if [ ${#profraw_files[@]} -eq 0 ]; then
+            echo "::warning::No .profraw files found. Did tests run with LLVM_PROFILE_FILE set?"
+            exit 0
+          fi
+          llvm-profdata merge -sparse "${profraw_files[@]}" -o "${{ env.BUILD_DIR }}/coverage/coverage.profdata"
+
+      - name: 📊 Generate Coverage Reports (lcov + HTML)
+        if: matrix.config.preset == 'clang22-x64-linux-dbg-cov'
+        env:
+          COV_EXCLUDE_REGEX: '(vcpkg_installed|build|tests)'
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "${{ env.BUILD_DIR }}/coverage/coverage.profdata" ]; then
+            echo "::warning::No coverage.profdata found. Skipping llvm-cov."
+            exit 0
+          fi
+
+          # Find all instrumented test binaries (ending with "_test" or "_tests") in the build directory.
+          mapfile -t BINARIES < <(find "${{ env.BUILD_DIR }}" -maxdepth 3 -type f -executable \( -name "*_test" -o -name "*_tests" \) -print || true)
+          if [ ${#BINARIES[@]} -eq 0 ]; then
+            echo "::warning::No instrumented binaries found. Skipping llvm-cov."
+            exit 0
+          fi
+
+          # Export LCOV report
+          llvm-cov export -format=lcov -instr-profile="${{ env.BUILD_DIR }}/coverage/coverage.profdata" \
+            "${BINARIES[@]}" --ignore-filename-regex="${COV_EXCLUDE_REGEX}" \
+            > "${{ env.BUILD_DIR }}/coverage/coverage.lcov"
+
+          # Print summary to CI logs for visibility
+          llvm-cov report -instr-profile="${{ env.BUILD_DIR }}/coverage/coverage.profdata" \
+            "${BINARIES[@]}" --ignore-filename-regex="${COV_EXCLUDE_REGEX}"
+
+      - name: 🔼 Upload Coverage Artifact
+        if: ${{ matrix.config.preset == 'clang22-x64-linux-dbg-cov' && github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v7 # https://github.com/actions/upload-artifact
+        with:
+          name: Coverage-Report-${{ matrix.config.preset }}
+          path: ${{ env.BUILD_DIR }}/coverage/**
+          retention-days: 30
+
+      - name: 📦 Package
+        if: matrix.config.preset != 'clang22-x64-linux-dbg-cov'
+        run: |
+          tar -C "${{ env.BUILD_DIR }}" -czf "${{ env.ARTIFACT_NAME }}.tar.gz" gdl
+
+      # To ensure that jobs don't overwrite existing artifacts, use a different "name" per job/run.
+      - name: 📦 🚀 Upload Build Artifact
+        if: matrix.config.preset != 'clang22-x64-linux-dbg-cov'
+        uses: actions/upload-artifact@v7 # https://github.com/actions/upload-artifact
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_NAME }}.tar.gz
+          retention-days: 30

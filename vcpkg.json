@@ -1,0 +1,35 @@
+{
+  "name": "ontolaw-gdl",
+  "version": "1.0.0",
+  "description": "Ontolaw GDL ist ein Downloader für das deutsche Bundesrecht.",
+  "homepage": "https://github.com/ontolaw/gdl",
+  "license": "MIT",
+  "maintainers": [
+    "Jens A. Koch <jakoch@web.de>"
+  ],
+  "supports": "windows & linux & x64 & !arm",
+  "dependencies": [
+    "catch2",
+    "spdlog",
+    "pugixml",
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": [
+        "brotli",
+        "c-ares",
+        "http2",
+        "openssl",
+        "zstd"
+      ]
+    },
+    {
+      "name": "fmt",
+      "version>=": "11.2.0",
+      "platform": "linux"
+    },
+    "minizip"
+  ],
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "builtin-baseline": "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+}

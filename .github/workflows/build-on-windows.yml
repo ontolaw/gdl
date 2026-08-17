@@ -1,0 +1,128 @@
+#
+# .github/workflows/build-on-windows.yml
+#
+# Copyright 2021 Jens A. Koch.
+# SPDX-License-Identifier: MIT
+# This file is part of https://github.com/ontolaw/gdl/.
+#
+
+name: "Build on Windows"
+on:
+  - push
+  - pull_request
+  - workflow_dispatch
+
+# improve CI concurrency by automatically cancelling outdated jobs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+
+# ---------------------------------------------------------------------------------------
+
+      build:
+
+# ---------------------------------------------------------------------------------------
+
+        name: ${{ matrix.config.NAME }}
+        # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2022-Readme.md
+        runs-on: windows-2022
+
+        strategy:
+          fail-fast: false
+          matrix:
+            config:
+                - { NAME: "Release", PRESET: "vc17-x64-windows-static-rel-ci" }
+                - { NAME: "Debug",   PRESET: "vc17-x64-windows-static-dbg-ci" }
+
+        env:
+          PLATFORM: x64
+          VCPKG_ROOT: C:\tools\vcpkg
+
+        defaults:
+          run:
+            shell: cmd
+
+        steps:
+          - name: 🤘 Checkout Code
+            uses: actions/checkout@v7 # https://github.com/actions/checkout
+
+          # The CI presets (vc17-x64-windows-static-*-ci) use "sccache" as
+          # CMAKE_CXX_COMPILER_LAUNCHER. sccache is NOT preinstalled on the
+          # windows-2022 runner image and ccache cannot wrap MSVC, so install it here.
+          # https://community.chocolatey.org/packages/ninja
+          # https://community.chocolatey.org/packages/sccache
+          - name: 🔽 Install Ninja & sccache
+            run: choco install ninja sccache -y --no-progress
+
+          # vcpkg stores built packages in its default binary cache
+          # ("%LOCALAPPDATA%\vcpkg\archives"). Cache that folder, so the
+          # dependencies are not rebuilt from source on every run.
+          - name: 🎯 Cache VCPKG
+            if: always()
+            id: cache-vcpkg
+            uses: actions/cache@v6 # https://github.com/actions/cache
+            with:
+              path: ~\AppData\Local\vcpkg\archives
+              key: cache-windows-vcpkg-x64-windows-static-${{ matrix.config.PRESET }}-${{ github.ref }}-${{ github.run_number }}
+              restore-keys: |
+                cache-windows-vcpkg-x64-windows-static-${{ matrix.config.PRESET }}-${{ github.ref }}
+                cache-windows-vcpkg-x64-windows-static-${{ matrix.config.PRESET }}
+                cache-windows-vcpkg-x64-windows-static
+
+          - name: 🛠️ Show Tool Versions
+            run: |
+              date /T
+              time /T
+              cmake --version
+              vcpkg --version
+              ninja --version
+              sccache --version
+
+          # Build Artifact Name: ontolaw-gdl-1.0.0-0cda6a2-vc17-x64-windows-static-rel-ci
+          - name: ✏ Fetch Versioning Data & Set Artifact Name
+            shell: pwsh
+            run: |
+              $NAME=$(jq -r .name vcpkg.json)
+              $VERSION=$(jq -r .version vcpkg.json)
+              $SHORT_HASH=$($env:GITHUB_SHA.substring(0,7))
+              $ARTIFACT_NAME="$NAME-$VERSION-$SHORT_HASH-${{matrix.config.PRESET}}"
+              echo "Artifact Name:" $ARTIFACT_NAME
+              echo "ARTIFACT_NAME=$($ARTIFACT_NAME)" >> $env:GITHUB_ENV
+              echo "VERSION=$($VERSION)" >> $env:GITHUB_ENV
+
+          - name: 🛠️ Setup Visual Studio Developer Command Prompt
+            uses: TheMrMilchmann/setup-msvc-dev@v4 # https://github.com/TheMrMilchmann/setup-msvc-dev
+            with:
+              arch: x64
+
+          - name: ✏ CMake ➔ Configure
+            run: cmake --preset=${{matrix.config.PRESET}}
+
+          - name: 🙏 CMake ➔ Build
+            run: cmake --build build --parallel 1
+
+          # The project does not define any install() rules, so "cmake --install"
+          # would be a no-op. Verify the executable and package it from the build tree.
+          - name: ❔ CHECK that the executable exists (after building)
+            run: |
+              dir /S /B build
+              if not exist build\gdl.exe (echo ERROR: build\gdl.exe not found & exit /b 1)
+
+          # Double ZIP issue: https://github.com/actions/upload-artifact#zipped-artifact-downloads
+          # We can either zip an already zipped file; or send all files to a zip service, possibly creating a 503.
+          - name: 📦 Package
+            run: |
+              cd build
+              7z a -tzip -mx9 "${{env.ARTIFACT_NAME}}.zip" gdl.exe
+
+          # To ensure that jobs don't overwrite existing artifacts, use a different "name" per job/run.
+          - name: 📦 🚀 Upload Artifact
+            uses: actions/upload-artifact@v7 # https://github.com/actions/upload-artifact
+            with:
+              name: ${{env.ARTIFACT_NAME}}
+              path: build/${{env.ARTIFACT_NAME}}.zip

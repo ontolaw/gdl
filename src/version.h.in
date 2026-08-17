@@ -1,0 +1,153 @@
+// Copyright 2021-2026 Jens A. Koch.
+// SPDX-License-Identifier: MIT
+// This file is part of ontolaw/gdl.
+
+/**
+ * Diese "version.h" wird von CMake aus "version.h.in" erzeugt.
+ *
+ * configure_file() verwendet die folgenden Ersetzungs-Token:
+ *
+ * APP_NAME
+ * APP_VERSION              - wird in dieser Datei nicht verwendet
+ * APP_LICENSE
+ * APP_DESC
+ * APP_HOMEPAGE
+ * PROJECT_VERSION_MAJOR
+ * PROJECT_VERSION_MINOR
+ * PROJECT_VERSION_PATCH
+ * CURRENT_YEAR
+ */
+
+#pragma once
+
+#include <string>
+#include <string_view>
+
+class semantic_version {
+public:
+    /* 0 - 65.535 */
+    unsigned short int major = @PROJECT_VERSION_MAJOR@;
+    unsigned short int minor = @PROJECT_VERSION_MINOR@;
+    unsigned short int patch = @PROJECT_VERSION_PATCH@;
+};
+
+class app_version
+{
+public:
+    static constexpr std::string_view binary_name = "@APP_BINARY_NAME@";
+    static constexpr std::string_view name        = "@APP_NAME@";
+    static constexpr std::string_view version     = "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@";
+    static constexpr std::string_view license     = "@APP_LICENSE@";
+    static constexpr std::string_view description = "@APP_DESC@";
+    static constexpr std::string_view homepage    = "@APP_HOMEPAGE@";
+    static constexpr std::string_view copyright   = "Copyright (c) Jens A. Koch, 2021-@CURRENT_YEAR@.";
+    static constexpr semantic_version semver{@PROJECT_VERSION_MAJOR@, @PROJECT_VERSION_MINOR@, @PROJECT_VERSION_PATCH@};
+
+    /**
+     * Versions-Metadaten als JSON-Objekt abrufen.
+     *
+     * @return constexpr std::string_view
+     */
+    static constexpr std::string_view get_version_json() noexcept {
+        // Hinweis: Bitte die Einrückung für bessere Lesbarkeit beibehalten,
+        // damit Schlüssel und Werte in der Ausgabe (gdl -jV) spaltenweise ausgerichtet bleiben.
+        return
+            "{\n"
+            "  \"name\":         \"@APP_NAME@\",\n"
+            "  \"binary_name\":  \"@APP_BINARY_NAME@\",\n"
+            "  \"version\":      \"@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@\",\n"
+            "  \"description\":  \"@APP_DESC@\",\n"
+            "  \"homepage\":     \"@APP_HOMEPAGE@\",\n"
+            "  \"license\":      \"@APP_LICENSE@\",\n"
+            "  \"authors\": [\n"
+            "    {\n"
+            "      \"name\":     \"Jens A. Koch\",\n"
+            "      \"email\":    \"jakoch@web.de\",\n"
+            "      \"homepage\": \"https://jakoch.de\"\n"
+            "    },\n"
+            "    {\n"
+            "      \"name\":     \"Ontolaw\",\n"
+            "      \"email\":    \"dev@ontolaw.de\",\n"
+            "      \"homepage\": \"https://ontolaw.de\"\n"
+            "    }\n"
+            "  ],\n"
+            "  \"copyright\":    \"Copyright (c) Jens A. Koch, 2021-@CURRENT_YEAR@.\",\n"
+            "  \"support\": {\n"
+            "    \"issues\":     \"@APP_HOMEPAGE@/issues\",\n"
+            "    \"source\":     \"@APP_HOMEPAGE@\"\n"
+            "  },\n"
+            "  \"build\": {\n"
+            "    \"date\":       \"@BUILD_DATE@\",\n"
+            "    \"commit\":     \"@BUILD_COMMIT@\",\n"
+            "    \"platform\":   \"@BUILD_PLATFORM@\",\n"
+            "    \"triplet\":    \"@BUILD_TRIPLET@\"\n"
+            "  }\n"
+            "}";
+    }
+
+    /**
+     * Build-Metadaten als Klartext abrufen.
+     *
+     * @return constexpr std::string_view
+     */
+    static constexpr std::string_view get_version_build() noexcept {
+        return
+            "Build Information\n"
+            "\n"
+            "Binary:    @APP_BINARY_NAME@\n"
+            "Date:      @BUILD_DATE@\n"
+            "Commit:    @BUILD_COMMIT@\n"
+            "Platform:  @BUILD_PLATFORM@\n"
+            "Triplet:   @BUILD_TRIPLET@\n";
+    }
+
+    /**
+     * Build-Metadaten als JSON abrufen.
+     *
+     * @return constexpr std::string_view
+     */
+    static constexpr std::string_view get_version_build_json() noexcept {
+        // Einrückung für bessere Lesbarkeit konsistent halten
+        return
+            "{\n"
+            "  \"binary\":   \"@APP_BINARY_NAME@\",\n"
+            "  \"date\":     \"@BUILD_DATE@\",\n"
+            "  \"commit\":   \"@BUILD_COMMIT@\",\n"
+            "  \"platform\": \"@BUILD_PLATFORM@\",\n"
+            "  \"triplet\":  \"@BUILD_TRIPLET@\"\n"
+            "}";
+    }
+
+    /*
+    * Getter - c_str()-Typen
+    */
+
+    static constexpr char const *get_name()
+    {
+        return name.data();
+    }
+    static constexpr char const *get_binary_name()
+    {
+        return binary_name.data();
+    }
+    static constexpr char const *get_license()
+    {
+        return license.data();
+    }
+    static constexpr char const *get_description()
+    {
+        return description.data();
+    }
+    static constexpr char const *get_version()
+    {
+        return version.data();
+    }
+    static constexpr char const *get_homepage()
+    {
+        return homepage.data();
+    }
+    static constexpr char const *get_copyright()
+    {
+        return copyright.data();
+    }
+};
