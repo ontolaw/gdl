@@ -146,6 +146,7 @@ set(SOURCES
     src/utils/download.h    src/utils/download.cpp
     src/utils/crawler.h     src/utils/crawler.cpp
     src/utils/clicolors.h   src/utils/clicolors.cpp
+    src/utils/dataset.h     src/utils/dataset.cpp
     # CLI Commands
     src/commands/cmd.base.h
     src/commands/cmd.help.h             src/commands/cmd.help.cpp
@@ -246,6 +247,8 @@ if(BUILD_TESTING)
     src/utils/download.cpp
     src/utils/crawler.h
     src/utils/crawler.cpp
+    src/utils/dataset.h
+    src/utils/dataset.cpp
     tests/commands/command_metadata_tests.cpp
     tests/commands/command_run_tests.cpp
     tests/app/config_tests.cpp

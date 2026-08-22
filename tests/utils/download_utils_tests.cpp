@@ -46,13 +46,13 @@ CURLM* setup_curl_multi_handle(std::vector<CURL*> const & curl_easy_handles);
 std::vector<std::string> collect_active_files(
     std::vector<CURL*> const & curl_easy_handles, std::vector<bool> const & transfer_done);
 void render_interactive_status(
-    const struct DownloadProgressState& state, std::vector<std::string> const & active_files);
+    const struct TestDownloadProgressState& state, std::vector<std::string> const & active_files);
 void maybe_render_compact_status(
-    struct DownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
+    struct TestDownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
 void render_download_status(
-    struct DownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
+    struct TestDownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
 
-struct DownloadProgressState
+struct TestDownloadProgressState
 {
     int total                                                 = 0;
     int finished                                              = 0;
@@ -211,7 +211,7 @@ namespace
 
     void set_env_var(char const * name, char const * value)
     {
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
         _putenv_s(name, value);
 #else
         setenv(name, value, 1);
@@ -220,7 +220,7 @@ namespace
 
     void unset_env_var(char const * name)
     {
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
         _putenv_s(name, "");
 #else
         unsetenv(name);
@@ -450,7 +450,7 @@ TEST_CASE("download_file succeeds against local HTTP fixture", "[download][utils
 
 TEST_CASE("download status renderers execute interactive and compact paths", "[download][utils]")
 {
-    DownloadProgressState state;
+    TestDownloadProgressState state;
     state.total       = 10;
     state.finished    = 2;
     state.succeeded   = 1;

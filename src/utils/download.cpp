@@ -188,6 +188,7 @@ struct DownloadProgressState
     int finished                                              = 0;
     int succeeded                                             = 0;
     int failed                                                = 0;
+    int skipped                                               = 0;
     DownloadOutputMode output_mode                            = DownloadOutputMode::Interactive;
     std::chrono::steady_clock::time_point started_at          = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point last_compact_log_at = started_at;
@@ -198,7 +199,7 @@ struct DownloadProgressState
 bool env_flag_enabled(char const * name)
 {
     std::string value;
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
     char* env           = nullptr;
     std::size_t env_len = 0;
     if (_dupenv_s(&env, &env_len, name) != 0 || env == nullptr) {
@@ -995,13 +996,32 @@ int download_urls(
         return EXIT_SUCCESS;
     }
 
-    for (int start_index = 0; start_index < urls_total; start_index += chunk_size) {
+    std::vector<std::string> urls_to_download;
+    urls_to_download.reserve(urls_total);
+    for (auto const & url : urls) {
+        std::filesystem::path filepath;
+        std::filesystem::path folder;
+        if (try_get_file_and_folder(url, outputRoot, filepath, folder) && std::filesystem::exists(filepath)) {
+            spdlog::info("Bereits vorhanden, uebersprungen: {}", filepath.string());
+            progress.skipped++;
+            progress.finished++;
+        } else {
+            urls_to_download.push_back(url);
+        }
+    }
+
+    if (progress.skipped > 0) {
+        spdlog::info("{} Datei(en) bereits vorhanden, uebersprungen.", progress.skipped);
+    }
+
+    int const to_download_total = static_cast<int>(urls_to_download.size());
+    for (int start_index = 0; start_index < to_download_total; start_index += chunk_size) {
         int end_index = start_index + chunk_size;
         spdlog::info("Lade URLs von Index {} bis {} herunter", start_index, end_index);
 
         std::vector<std::string> chunk_urls;
-        for (int j = start_index; j < end_index && j < urls_total; j++) {
-            chunk_urls.push_back(urls.at(j));
+        for (int j = start_index; j < end_index && j < to_download_total; j++) {
+            chunk_urls.push_back(urls_to_download.at(j));
         }
 
         download_urls_with_curl(chunk_urls, progress, curlVerbose, outputRoot);
@@ -1016,11 +1036,12 @@ int download_urls(
 
     spdlog::info(
         "Download-Zusammenfassung: abgeschlossen {} von {}, erfolgreich "
-        "{}, fehlgeschlagen {}.",
+        "{}, fehlgeschlagen {}, uebersprungen {}.",
         progress.finished,
         progress.total,
         progress.succeeded,
-        progress.failed);
+        progress.failed,
+        progress.skipped);
 
     return EXIT_SUCCESS;
 }
