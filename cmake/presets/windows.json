@@ -1,0 +1,304 @@
+{
+  "version": 10,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 31,
+    "patch": 0
+  },
+  "$comment": "CMake presets for Windows.",
+  "include": [
+    "base.json"
+  ],
+  "configurePresets": [
+      {
+        "name": "vc17-x64-windows-rel",
+        "displayName": "VC17 (Visual Studio Community 2022) Release",
+        "inherits": "vc17-x64-windows-static",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-dbg",
+        "displayName": "VC17 Debug",
+        "inherits": "vc17-x64-windows-static",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-rdi",
+        "displayName": "VC17 RelWithDebInfo",
+        "inherits": "vc17-x64-windows-static",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-dbg-asan",
+        "hidden": true,
+        "displayName": "VC17 Debug (ASAN)",
+        "inherits": "vc17-x64-windows-dbg",
+        "cacheVariables": {
+          "X_ENABLE_ASAN": "ON"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-dbg-ana",
+        "displayName": "VC17 Analysis",
+        "inherits": "vc17-x64-windows-dbg",
+        "cacheVariables": {
+          "X_ENABLE_ANALYSIS": "ON"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-static-rel-ci",
+        "displayName": "VC17 Release (CI)",
+        "inherits": [
+          "vc17-x64-windows-rel",
+          "condition-is-ci"
+        ],
+        "binaryDir": "build",
+        "installDir": "install",
+        "cacheVariables": {
+          "CMAKE_CXX_COMPILER_LAUNCHER": "sccache"
+        }
+      },
+      {
+        "name": "vc17-x64-windows-static-dbg-ci",
+        "displayName": "VC17 Debug (CI)",
+        "inherits": [
+          "vc17-x64-windows-dbg",
+          "condition-is-ci"
+        ],
+        "binaryDir": "build",
+        "installDir": "install",
+        "cacheVariables": {
+          "CMAKE_CXX_COMPILER_LAUNCHER": "sccache"
+        }
+      },
+      {
+        "name": "clangcl-x64-windows-dbg",
+        "displayName": "ClangCL Debug",
+        "inherits": "clangcl-x64-windows",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug"
+        }
+      },
+      {
+        "name": "clangcl-x64-windows-rel",
+        "displayName": "ClangCL Release",
+        "inherits": "clangcl-x64-windows",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      },
+      {
+        "name": "clangcl-x64-windows-rdi",
+        "displayName": "ClangCL RelWithDebInfo",
+        "inherits": "clangcl-x64-windows",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        }
+      },
+      {
+        "name": "condition-is-windows",
+        "hidden": true,
+        "displayName": "Windows-only configuration",
+        "description": "This build is only available on Windows.",
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}",
+          "rhs": "Windows"
+        }
+      },
+    {
+      "name": "vcpkg-triplet-x64-windows",
+      "hidden": true,
+      "description": "Set vcpkg target_triplet (shared | dynamic).",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "VCPKG_TARGET_TRIPLET": {
+          "type": "STRING",
+          "value": "x64-windows"
+        }
+      },
+      "inherits": [
+        "vcpkg-default-config"
+      ]
+    },
+    {
+      "name": "vcpkg-triplet-x64-windows-static",
+      "hidden": true,
+      "description": "Set vcpkg target_triplet (non-shared | static).",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": {
+          "type": "BOOL",
+          "value": "OFF"
+        },
+        "VCPKG_TARGET_TRIPLET": {
+          "type": "STRING",
+          "value": "x64-windows-static"
+        }
+      },
+      "inherits": [
+        "vcpkg-default-config"
+      ]
+    },
+    {
+      "name": "compiler-msvc-vc17",
+      "hidden": true,
+      "description": "Set VC17 (VS2022) as compiler on Windows.",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "cl"
+        }
+      }
+    },
+    {
+      "name": "compiler-msvc-vc26",
+      "hidden": true,
+      "description": "Set VC18 (VS2026) as compiler on Windows.",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "cl"
+        }
+      }
+    },
+    {
+      "name": "compiler-msvc-clang",
+      "hidden": true,
+      "description": "Set Clang-Cl (from MSVC) as compiler on Windows..",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "clang-cl"
+        }
+      }
+    },
+    {
+      "name": "compiler-llvm-clang",
+      "hidden": true,
+      "description": "Set Clang (native; from LLVM) as compiler on Windows.",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "clang-cl"
+        }
+      }
+    },
+    {
+      "name": "vc17-x64-windows",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "cl"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "v143,host=x64",
+        "strategy": "external"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": "Windows",
+          "intelliSenseMode": "windows-msvc-x64"
+        }
+      },
+      "inherits": [
+        "condition-is-windows",
+        "default-cmake-config",
+        "enable-warnings",
+        "generator-ninja",
+        "compiler-msvc-vc17",
+        "default-build-folders",
+        "vcpkg-default-config",
+        "vcpkg-triplet-x64-windows"
+      ]
+    },
+    {
+      "name": "vc17-x64-windows-static",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "cl"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": {
+        "value": "v143,host=x64",
+        "strategy": "external"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": "Windows",
+          "intelliSenseMode": "windows-msvc-x64"
+        }
+      },
+      "inherits": [
+        "condition-is-windows",
+        "default-cmake-config",
+        "enable-warnings",
+        "generator-ninja",
+        "compiler-msvc-vc17",
+        "default-build-folders",
+        "vcpkg-default-config",
+        "vcpkg-triplet-x64-windows-static"
+      ]
+    },
+    {
+      "name": "clangcl-x64-windows",
+      "hidden": true,
+      "description": "Use Clang-CL (MSVC) as compiler on Windows.",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "clang-cl"
+        }
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-clang-x64"
+        }
+      },
+      "inherits": [
+        "condition-is-windows",
+        "default-cmake-config",
+        "enable-warnings",
+        "generator-ninja",
+        "compiler-msvc-clang",
+        "default-build-folders",
+        "vcpkg-default-config",
+        "vcpkg-triplet-x64-windows-static"
+      ]
+    },
+    {
+      "name": "windows-clang",
+      "hidden": true,
+      "description": "Use Clang (native; LLVM) as compiler on Windows.",
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-clang-x64"
+        }
+      },
+      "inherits": [
+        "condition-is-windows",
+        "default-cmake-config",
+        "enable-warnings",
+        "generator-ninja",
+        "compiler-llvm-clang",
+        "default-build-folders",
+        "vcpkg-default-config",
+        "vcpkg-triplet-x64-windows-static"
+      ]
+    }
+  ]
+}

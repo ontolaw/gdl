@@ -1,0 +1,96 @@
+{
+	"version": 10,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 31,
+		"patch": 0
+	},
+  "$comment": "The main CMake presets for the project.",
+	"include": [
+		"cmake/presets/base.json",
+		"cmake/presets/windows.json",
+		"cmake/presets/linux.json"
+	],
+	"buildPresets": [
+			{
+				"name": "vc17-x64-windows-rel",
+				"displayName": "gdl",
+				"configurePreset": "vc17-x64-windows-rel",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+				"name": "vc17-x64-windows-dbg",
+				"displayName": "gdl",
+				"configurePreset": "vc17-x64-windows-dbg",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+				"name": "clangcl-x64-windows-rel",
+				"displayName": "gdl",
+				"configurePreset": "clangcl-x64-windows-rel",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+				"name": "clangcl-x64-windows-dbg",
+				"displayName": "gdl",
+				"configurePreset": "clangcl-x64-windows-dbg",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+			"name": "clang22-x64-linux-rel",
+			"displayName": "gdl",
+			"configurePreset": "clang22-x64-linux-rel",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+			"name": "clang22-x64-linux-dbg",
+			"displayName": "gdl",
+			"configurePreset": "clang22-x64-linux-dbg",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+			"name": "clang22-x64-linux-dbg-cov",
+			"displayName": "gdl_tests",
+			"configurePreset": "clang22-x64-linux-dbg-cov",
+				"targets": [
+					"gdl_tests"
+				]
+			},
+			{
+				"name": "gcc14-x64-linux-rel",
+				"displayName": "gdl",
+				"configurePreset": "gcc14-x64-linux-rel",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+				"name": "gcc16-x64-linux-rel",
+				"displayName": "gdl",
+				"configurePreset": "gcc16-x64-linux-rel",
+				"targets": [
+					"gdl"
+				]
+			},
+			{
+				"name": "gcc14-x64-linux-dbg",
+				"displayName": "gdl",
+				"configurePreset": "gcc14-x64-linux-dbg",
+				"targets": [
+					"gdl"
+				]
+			}
+	]
+}
