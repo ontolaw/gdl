@@ -29,7 +29,7 @@ public:
     };
 
     // Standardeinstellungen
-    inline static bool const DEFAULT_DEBUG_MODE                   = 0;
+    inline static bool const DEFAULT_DEBUG_MODE                   = false;
     inline static std::string const DEFAULT_OUTPUT_DIRECTORY      = "data/gii";
     inline static std::string const DEFAULT_OUTPUT_DIRECTORY_GII  = "data/gii";
     inline static std::string const DEFAULT_OUTPUT_DIRECTORY_VVII = "data/vvii";
@@ -409,7 +409,7 @@ private:
     { return source == DownloadSource::Vvii ? DEFAULT_OUTPUT_DIRECTORY_VVII : DEFAULT_OUTPUT_DIRECTORY_GII; }
 
     // Überschreibbare/veränderbare Standardeinstellungen
-    bool debugMode_;
+    [[maybe_unused]] bool debugMode_;
     std::string outputDirectory_;
     DownloadSource source_;
     bool customOutputDirectory_ = false;

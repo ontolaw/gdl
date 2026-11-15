@@ -268,6 +268,7 @@ if(BUILD_TESTING)
     tests/commands/command_run_tests.cpp
     tests/app/config_tests.cpp
     tests/app/main_tests.cpp
+    tests/test_helpers/temp_dir.h
     tests/utils/files_utils_tests.cpp
     tests/utils/xml_utils_tests.cpp
     tests/utils/unzip_utils_tests.cpp
@@ -282,6 +283,7 @@ if(BUILD_TESTING)
 
   target_include_directories(gdl_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
     ${CMAKE_CURRENT_BINARY_DIR}
   )
 

@@ -9,6 +9,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "test_helpers/temp_dir.h"
 #include "utils/xml.h"
 
 void rename_xml_nodes(pugi::xml_document& doc, std::unordered_map<std::string, std::string> const & node_map);
@@ -73,11 +74,11 @@ TEST_CASE("get_urls returns empty for missing or invalid xml", "[xml]")
 
 TEST_CASE("format_xml_files rewrites xml files in folder tree", "[xml]")
 {
-    auto const temp_dir = std::filesystem::temp_directory_path() / "gdl_xml_format_test";
+    test_helpers::TempDir const temp_dir_owner{"gdl_xml_format_test"};
+    auto const temp_dir = temp_dir_owner.path();
     auto const nested   = temp_dir / "sub";
     auto const xml_file = nested / "sample.xml";
 
-    std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(nested);
 
     {
@@ -94,17 +95,15 @@ TEST_CASE("format_xml_files rewrites xml files in folder tree", "[xml]")
     REQUIRE(content.contains("<child>1</child>"));
 
     format_xml_files((temp_dir / "missing").string());
-
-    std::filesystem::remove_all(temp_dir);
 }
 
 TEST_CASE("format_xml_files is deterministic and produces byte-identical output on re-run", "[xml]")
 {
-    auto const temp_dir = std::filesystem::temp_directory_path() / "gdl_xml_determinism_test";
+    test_helpers::TempDir const temp_dir_owner{"gdl_xml_determinism_test"};
+    auto const temp_dir = temp_dir_owner.path();
     auto const nested   = temp_dir / "sub";
     auto const xml_file = nested / "sample.xml";
 
-    std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(nested);
 
     {
@@ -129,8 +128,6 @@ TEST_CASE("format_xml_files is deterministic and produces byte-identical output 
 
     REQUIRE_FALSE(first.empty());
     REQUIRE(first == second);
-
-    std::filesystem::remove_all(temp_dir);
 }
 
 TEST_CASE("rename_xml_nodes renames existing nodes and skips missing ones", "[xml]")

@@ -25,8 +25,8 @@ enum class Color
 };
 
 void print_status(
-    std::string const & status_message = "Status update.", int indent_spaces = 0, Color color = Color::Light_Grey);
+    std::string const & status_message = "Status update.", size_t indent_spaces = 0, Color color = Color::Light_Grey);
 std::string format_status(
-    std::string const & status_message = "Status update.", int indent_spaces = 0, Color color = Color::Light_Grey);
+    std::string const & status_message = "Status update.", size_t indent_spaces = 0, Color color = Color::Light_Grey);
 std::string format_options(std::vector<std::string_view> const & args);
 std::string get_datetime();

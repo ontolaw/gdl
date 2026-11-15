@@ -87,12 +87,12 @@ namespace
                     }
 
                     std::array<char, 1024> request_buffer{};
-                    ssize_t const received = ::recv(client_fd, request_buffer.data(), request_buffer.size(), 0);
+                    ssize_t const received = ::recv(client_fd, request_buffer.data(), request_buffer.size() - 1, 0);
                     if (received <= 0) {
                         ::close(client_fd);
                         continue;
                     }
-                    request_buffer.at(received) = '\0';
+                    request_buffer.at(static_cast<std::size_t>(received)) = '\0';
 
                     std::string const request(request_buffer.data());
                     std::string body;

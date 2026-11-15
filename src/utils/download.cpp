@@ -170,7 +170,7 @@ DownloadOutputMode select_download_output_mode(bool const curlVerbose, bool cons
 
 struct private_data
 {
-    int num_url = 0;
+    std::size_t num_url = 0;
     std::string filename;
 };
 
@@ -184,15 +184,15 @@ struct ActiveTransferInfo
 
 struct DownloadProgressState
 {
-    int total                                                 = 0;
-    int finished                                              = 0;
-    int succeeded                                             = 0;
-    int failed                                                = 0;
-    int skipped                                               = 0;
+    size_t total                                              = 0;
+    size_t finished                                           = 0;
+    std::size_t succeeded                                     = 0;
+    std::size_t failed                                        = 0;
+    std::size_t skipped                                       = 0;
     DownloadOutputMode output_mode                            = DownloadOutputMode::Interactive;
     std::chrono::steady_clock::time_point started_at          = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point last_compact_log_at = started_at;
-    int last_compact_log_finished                             = 0;
+    size_t last_compact_log_finished                          = 0;
     bool interactive_rendered                                 = false;
 };
 
@@ -370,7 +370,7 @@ std::string basename_of(std::string const & filepath)
 double estimate_progress_ratio(
     DownloadProgressState const & state, std::vector<ActiveTransferInfo> const & active_transfers)
 {
-    if (state.total <= 0) {
+    if (state.total == 0) {
         return 1.0;
     }
 
@@ -384,7 +384,7 @@ double estimate_progress_ratio(
         partial += std::clamp(downloaded / total, 0.0, 1.0);
     }
 
-    double const done = static_cast<double>(std::max(0, state.finished));
+    double const done = static_cast<double>(state.finished);
     return std::clamp((done + partial) / static_cast<double>(state.total), 0.0, 1.0);
 }
 
@@ -543,7 +543,7 @@ void maybe_render_compact_status(
     DownloadProgressState& state, std::vector<ActiveTransferInfo> const & active_transfers, bool const force = false)
 {
     auto const now                    = std::chrono::steady_clock::now();
-    int const finished_delta          = state.finished - state.last_compact_log_finished;
+    auto const finished_delta         = state.finished - state.last_compact_log_finished;
     bool const reached_step           = finished_delta >= 100;
     bool const reached_time           = (now - state.last_compact_log_at) >= std::chrono::seconds(30);
     bool const all_done               = state.total > 0 && state.finished >= state.total;
@@ -638,23 +638,23 @@ std::vector<CURL*> setup_curl_handles(
     std::vector<CURL*>& curl_handles,
     std::vector<std::unique_ptr<FILE, FileCloser>>& files,
     std::vector<bool>& scheduled,
-    int& setup_failures,
+    size_t& setup_failures,
     bool const curlVerbose,
     std::filesystem::path const & outputRoot)
 {
-    int const transfers_total = static_cast<int>(urls.size());
+    auto const transfers_total = urls.size();
 
     // curl-easy-handles für jede URL initialisieren
-    for (int i = 0; i < transfers_total; i++) {
+    for (std::size_t i = 0; i < transfers_total; i++) {
         curl_handles.at(i) = curl_easy_init();
-        files.at(i).reset();
-        scheduled.at(i) = false;
-
         if (curl_handles.at(i) == nullptr) {
             spdlog::error("CURL-Handle für URL {} konnte nicht initialisiert werden", urls.at(i));
             setup_failures++;
             continue;
         }
+
+        files.at(i).reset();
+        scheduled.at(i) = false;
 
         // == Datei und Ordner aus URL ermitteln
 
@@ -828,13 +828,13 @@ int download_urls_with_curl(
     bool const curlVerbose,
     std::filesystem::path const & outputRoot)
 {
-    int transfers_total    = static_cast<int>(urls.size());
-    int transfers_finished = 0;
+    auto const transfers_total     = urls.size();
+    std::size_t transfers_finished = 0;
 
     std::vector<CURL*> curl_easy_handles(transfers_total);
     std::vector<std::unique_ptr<FILE, FileCloser>> files(transfers_total);
     std::vector<bool> transfer_done(transfers_total);
-    int setup_failures = 0;
+    std::size_t setup_failures = 0;
 
     // curl-easy-handles für jede URL einrichten
     curl_easy_handles =
@@ -887,10 +887,11 @@ int download_urls_with_curl(
             private_data const * data = nullptr;
             curl_easy_getinfo(easy_handle, CURLINFO_PRIVATE, &data);
 
-            int const url_index = (data != nullptr) ? data->num_url : -1;
+            std::optional<std::size_t> const url_index =
+                (data != nullptr) ? std::optional<std::size_t>{data->num_url} : std::nullopt;
 
-            if (url_index >= 0 && url_index < transfers_total) {
-                transfer_done.at(url_index) = true;
+            if (url_index.has_value() && url_index < transfers_total) {
+                transfer_done.at(*url_index) = true;
             }
 
             // NOLINTNEXTLINE(runtime/int) - curl API requires long
@@ -904,8 +905,8 @@ int download_urls_with_curl(
                     http_status_code,
                     (data != nullptr) ? data->filename : std::string{"<unknown>"});
 
-                if (url_index >= 0 && url_index < transfers_total && files.at(url_index) != nullptr) {
-                    files.at(url_index).reset();
+                if (url_index >= 0 && url_index < transfers_total && files.at(*url_index) != nullptr) {
+                    files.at(*url_index).reset();
                 }
                 // Datei löschen
                 if (data != nullptr) {
@@ -919,8 +920,8 @@ int download_urls_with_curl(
                 curl_easy_getinfo(easy_handle, CURLINFO_SIZE_DOWNLOAD_T, &bytes_download);
                 spdlog::info("Heruntergeladene Bytes: {}", bytes_download);
 
-                if (url_index >= 0 && url_index < transfers_total && files.at(url_index) != nullptr) {
-                    files.at(url_index).reset();
+                if (url_index >= 0 && url_index < transfers_total && files.at(*url_index) != nullptr) {
+                    files.at(*url_index).reset();
                 }
 
                 progress.succeeded++;
@@ -981,7 +982,7 @@ int download_urls_with_curl(
 int download_urls(
     std::vector<std::string> const & urls, bool const curlVerbose, std::filesystem::path const & outputRoot)
 {
-    int const urls_total = static_cast<int>(urls.size());
+    auto const urls_total = urls.size();
     // Dateien in Blöcken von x herunterladen
     int const chunk_size = 9;
 
@@ -1014,13 +1015,13 @@ int download_urls(
         spdlog::info("{} Datei(en) bereits vorhanden, uebersprungen.", progress.skipped);
     }
 
-    int const to_download_total = static_cast<int>(urls_to_download.size());
-    for (int start_index = 0; start_index < to_download_total; start_index += chunk_size) {
-        int end_index = start_index + chunk_size;
+    auto const to_download_total = urls_to_download.size();
+    for (size_t start_index = 0; start_index < to_download_total; start_index += chunk_size) {
+        size_t end_index = start_index + chunk_size;
         spdlog::info("Lade URLs von Index {} bis {} herunter", start_index, end_index);
 
         std::vector<std::string> chunk_urls;
-        for (int j = start_index; j < end_index && j < to_download_total; j++) {
+        for (size_t j = start_index; j < end_index && j < to_download_total; j++) {
             chunk_urls.push_back(urls_to_download.at(j));
         }
 

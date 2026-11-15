@@ -20,6 +20,7 @@
 #include "commands/cmd.help.h"
 #include "commands/cmd.unzip-files.h"
 #include "commands/cmd.version.h"
+#include "test_helpers/temp_dir.h"
 
 namespace
 {
@@ -160,11 +161,11 @@ TEST_CASE("DownloadFilesCommand rejects hidden limit outside allowed range", "[c
 TEST_CASE("FormatXmlCommand formats XML in configured output folder", "[commands][run]")
 {
     AppConfig config;
-    auto const temp_root = std::filesystem::current_path() / "tmp" / "gdl_cmd_format_xml";
+    test_helpers::TempDir const temp_dir{"gdl_cmd_format_xml", std::filesystem::current_path() / "tmp"};
+    auto const temp_root = temp_dir.path();
     auto const nested    = temp_root / AppConfig::RAW_EXTRACTED_DIRECTORY / "nested";
     auto const xml_file  = nested / "sample.xml";
 
-    std::filesystem::remove_all(temp_root);
     std::filesystem::create_directories(nested);
 
     {
@@ -172,7 +173,7 @@ TEST_CASE("FormatXmlCommand formats XML in configured output folder", "[commands
         out << "<root><child>ok</child></root>";
     }
 
-    config.set_output_directory("tmp/gdl_cmd_format_xml");
+    config.set_output_directory(std::filesystem::relative(temp_root, std::filesystem::current_path()).generic_string());
 
     FormatXmlCommand const cmd(config);
     cmd.run("--format");
@@ -181,19 +182,17 @@ TEST_CASE("FormatXmlCommand formats XML in configured output folder", "[commands
     std::ifstream in(xml_file.string());
     std::string const content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     REQUIRE(content.contains("<child>ok</child>"));
-
-    std::filesystem::remove_all(temp_root);
 }
 
 TEST_CASE("DatasetReportCommand writes report file", "[commands][run]")
 {
     AppConfig config;
-    auto const temp_root = std::filesystem::current_path() / "tmp" / "gdl_cmd_dataset_report";
+    test_helpers::TempDir const temp_dir{"gdl_cmd_dataset_report", std::filesystem::current_path() / "tmp"};
+    auto const temp_root = temp_dir.path();
     auto const data_root = temp_root / "data";
     auto const one       = data_root / AppConfig::RAW_EXTRACTED_DIRECTORY / "one";
     auto const two       = data_root / AppConfig::RAW_EXTRACTED_DIRECTORY / "two";
 
-    std::filesystem::remove_all(temp_root);
     std::filesystem::create_directories(one);
     std::filesystem::create_directories(two);
 
@@ -225,8 +224,6 @@ TEST_CASE("DatasetReportCommand writes report file", "[commands][run]")
     std::string const content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     REQUIRE(content.contains("Datensatz-Report"));
     REQUIRE(content.contains("Ordner mit XML-Datei"));
-
-    std::filesystem::remove_all(temp_root);
 }
 
 TEST_CASE("UnzipFilesCommand runs on empty data/gii folder", "[commands][run]")

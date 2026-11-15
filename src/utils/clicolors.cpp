@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-void print_status(std::string const & status_message, int indent_spaces, Color color)
+void print_status(std::string const & status_message, size_t indent_spaces, Color color)
 {
     std::string const escape_code = "\033[0;" + std::to_string(static_cast<int>(color)) + "m";
     std::string const reset_code  = "\033[0m";
@@ -16,7 +16,7 @@ void print_status(std::string const & status_message, int indent_spaces, Color c
     std::cout << indentation << escape_code << status_message << reset_code << '\n';
 }
 
-std::string format_status(std::string const & status_message, int indent_spaces, Color color)
+std::string format_status(std::string const & status_message, size_t indent_spaces, Color color)
 {
     std::string const escape_code = "\033[0;" + std::to_string(static_cast<int>(color)) + "m";
     std::string const reset_code  = "\033[0m";

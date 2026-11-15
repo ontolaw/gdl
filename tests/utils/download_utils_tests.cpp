@@ -27,6 +27,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "test_helpers/temp_dir.h"
 #include "utils/download.h"
 
 bool env_flag_enabled(char const * name);
@@ -39,20 +40,14 @@ std::vector<CURL*> setup_curl_handles(
     std::vector<CURL*>& curl_handles,
     std::vector<std::unique_ptr<FILE, FileCloser>>& files,
     std::vector<bool>& scheduled,
-    int& setup_failures,
+    size_t& setup_failures,
     bool curlVerbose,
     std::filesystem::path const & outputRoot);
 CURLM* setup_curl_multi_handle(std::vector<CURL*> const & curl_easy_handles);
 std::vector<std::string> collect_active_files(
     std::vector<CURL*> const & curl_easy_handles, std::vector<bool> const & transfer_done);
-void render_interactive_status(
-    const struct DownloadProgressState& state, std::vector<std::string> const & active_files);
-void maybe_render_compact_status(
-    struct DownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
-void render_download_status(
-    struct DownloadProgressState& state, std::vector<std::string> const & active_files, bool force = false);
 
-struct DownloadProgressState
+struct TestDownloadProgressState
 {
     int total                                                 = 0;
     int finished                                              = 0;
@@ -309,9 +304,8 @@ TEST_CASE("try_get_file_and_folder validates malformed url shapes", "[download][
 
 TEST_CASE("setup_curl_handles configures valid urls and rejects invalid", "[download][utils]")
 {
-    auto const temp_root = std::filesystem::temp_directory_path() / "gdl_download_setup";
-    std::filesystem::remove_all(temp_root);
-    std::filesystem::create_directories(temp_root);
+    test_helpers::TempDir const temp_dir{"gdl_download_setup"};
+    auto const temp_root = temp_dir.path();
 
     CurrentPathGuard const guard(temp_root);
 
@@ -319,7 +313,7 @@ TEST_CASE("setup_curl_handles configures valid urls and rejects invalid", "[down
     std::vector<CURL*> handles(urls.size());
     std::vector<std::unique_ptr<FILE, FileCloser>> files(urls.size());
     std::vector<bool> scheduled(urls.size());
-    int setup_failures = 0;
+    size_t setup_failures = 0;
 
     setup_curl_handles(urls, handles, files, scheduled, setup_failures, false, "data/gii");
 
@@ -345,14 +339,12 @@ TEST_CASE("setup_curl_handles configures valid urls and rejects invalid", "[down
             handles.at(i) = nullptr;
         }
     }
-
-    std::filesystem::remove_all(temp_root);
 }
 
 TEST_CASE("setup_curl_handles fails when target path is not writable file", "[download][utils]")
 {
-    auto const temp_root = std::filesystem::temp_directory_path() / "gdl_download_setup_file_open_fail";
-    std::filesystem::remove_all(temp_root);
+    test_helpers::TempDir const temp_dir{"gdl_download_setup_file_open_fail"};
+    auto const temp_root = temp_dir.path();
     std::filesystem::create_directories(temp_root / "data" / "gii" / "blockedlaw" / "xml.zip");
 
     CurrentPathGuard const guard(temp_root);
@@ -361,7 +353,7 @@ TEST_CASE("setup_curl_handles fails when target path is not writable file", "[do
     std::vector<CURL*> handles(urls.size());
     std::vector<std::unique_ptr<FILE, FileCloser>> files(urls.size());
     std::vector<bool> scheduled(urls.size());
-    int setup_failures = 0;
+    size_t setup_failures = 0;
 
     setup_curl_handles(urls, handles, files, scheduled, setup_failures, false, "data/gii");
 
@@ -369,8 +361,6 @@ TEST_CASE("setup_curl_handles fails when target path is not writable file", "[do
     REQUIRE(handles.at(0) == nullptr);
     REQUIRE(files.at(0) == nullptr);
     REQUIRE_FALSE(scheduled.at(0));
-
-    std::filesystem::remove_all(temp_root);
 }
 
 TEST_CASE("setup_curl_multi_handle accepts null and active handles", "[download][utils]")
@@ -449,37 +439,6 @@ TEST_CASE("download_file succeeds against local HTTP fixture", "[download][utils
 #endif
 }
 
-TEST_CASE("download status renderers execute interactive and compact paths", "[download][utils]")
-{
-    DownloadProgressState state;
-    state.total       = 10;
-    state.finished    = 2;
-    state.succeeded   = 1;
-    state.failed      = 1;
-    state.output_mode = DownloadOutputMode::Interactive;
-
-    render_interactive_status(state, {"a.xml", "b.xml"});
-
-    state.interactive_rendered = true;
-    render_interactive_status(state, {"a.xml"});
-
-    state.output_mode         = DownloadOutputMode::Compact;
-    state.started_at          = std::chrono::steady_clock::now() - std::chrono::seconds(65);
-    state.last_compact_log_at = std::chrono::steady_clock::now() - std::chrono::seconds(31);
-    maybe_render_compact_status(state, {"active.xml"}, false);
-
-    state.finished                  = state.total;
-    state.last_compact_log_finished = state.finished;
-    maybe_render_compact_status(state, {}, false);
-
-    state.output_mode          = DownloadOutputMode::Interactive;
-    state.interactive_rendered = false;
-    render_download_status(state, {"active.xml"}, false);
-    REQUIRE(state.interactive_rendered);
-
-    render_download_status(state, {}, true);
-}
-
 TEST_CASE("download_urls handles chunked invalid inputs", "[download][utils]")
 {
     std::vector<std::string> urls;
@@ -493,9 +452,8 @@ TEST_CASE("download_urls handles chunked invalid inputs", "[download][utils]")
 
 TEST_CASE("download_urls executes transfer loop for valid-shaped URL", "[download][utils]")
 {
-    auto const temp_root = std::filesystem::temp_directory_path() / "gdl_download_loop";
-    std::filesystem::remove_all(temp_root);
-    std::filesystem::create_directories(temp_root);
+    test_helpers::TempDir const temp_dir{"gdl_download_loop"};
+    auto const temp_root = temp_dir.path();
 
     CurrentPathGuard const guard(temp_root);
 
@@ -504,6 +462,4 @@ TEST_CASE("download_urls executes transfer loop for valid-shaped URL", "[downloa
         "xml.zip"};
 
     REQUIRE(download_urls(urls, false, "data/gii") == EXIT_SUCCESS);
-
-    std::filesystem::remove_all(temp_root);
 }

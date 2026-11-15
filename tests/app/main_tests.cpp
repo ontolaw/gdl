@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "app/main.h"
+#include "test_helpers/temp_dir.h"
 
 namespace
 {
@@ -98,11 +99,11 @@ TEST_CASE("gdl_main treats prefixed unknown command as failure", "[app][main]")
 
 TEST_CASE("gdl_main handles report command in isolated workspace", "[app][main]")
 {
-    auto const temp_root = std::filesystem::temp_directory_path() / "gdl_main_report";
+    test_helpers::TempDir const temp_dir{"gdl_main_report"};
+    auto const temp_root = temp_dir.path();
     auto const data_root = temp_root / "data";
     auto const folder    = data_root / AppConfig::RAW_EXTRACTED_DIRECTORY / "a";
 
-    std::filesystem::remove_all(temp_root);
     std::filesystem::create_directories(folder);
     {
         std::ofstream xml((folder / "one.xml").string());
@@ -118,6 +119,4 @@ TEST_CASE("gdl_main handles report command in isolated workspace", "[app][main]"
 
     REQUIRE(gdl_main(static_cast<int>(argv.size()), argv.data()) == EXIT_SUCCESS);
     REQUIRE(std::filesystem::exists(temp_root / "data" / "datensatz-bericht.md"));
-
-    std::filesystem::remove_all(temp_root);
 }
